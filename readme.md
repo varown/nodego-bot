@@ -1,4 +1,4 @@
-# NodeGo 机器人
+# [NodeGo](https://app.nodego.ai/r/NODE588913414BD7) 机器人
 
 用于 NodeGo 平台的自动化机器人，支持多账户和代理配置（HTTP/SOCKS）。
 
