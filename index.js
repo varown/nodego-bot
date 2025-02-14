@@ -354,10 +354,10 @@ class MultiAccountPinger {
       setTimeout(() => process.exit(0), 1000);
     });
 
-    // consola.info("🚀 正在执行初始设置和任务...");
-    // await Promise.all(
-    //   this.accounts.map((account) => this.processAccountInitialTasks(account))
-    // );
+    consola.info("🚀 正在执行初始设置和任务...");
+    await Promise.all(
+      this.accounts.map((account) => this.processAccountInitialTasks(account))
+    );
 
     consola.info("⚡ 开始定期 Ping 循环...");
     while (this.isRunning) {
