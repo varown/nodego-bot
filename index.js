@@ -9,8 +9,8 @@ import consola from "consola";
 // 常量
 const Config = {
   REQUEST_TIMEOUT: 30000,
-  PING_COOLDOWN: 10000,
-  CLIENT_COOLDOWN: 30000,
+  CLIENT_IP: 30 * 1000,
+  PING_COOLDOWN: 120 * 1000,
   TASK_DELAY: 20000,
   CYCLE_INTERVAL: 10000,
   ACCOUNT_FILE: "cookies.json",
@@ -47,7 +47,24 @@ class NodeGoPinger {
       //   { code: "T102", name: "邀请 5 个朋友" },
       //   { code: "T103", name: "邀请 10 个朋友" },
     ];
-    this.headers = {};
+    this.headers = {
+      "accept": "application/json, text/plain, */*",
+      "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+      "cache-control": "no-cache",
+      "content-type": "application/json",
+      "pragma": "no-cache",
+      "priority": "u=1, i",
+      "sec-ch-ua":
+        '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "none",
+      "sec-fetch-storage-access": "active",
+      "sec-ch-ua-mobile": Math.random() > 0.5 ? "?1" : "?0",
+      "sec-ch-ua-platform": ["macOS", "Windows", "Linux"][
+        Math.floor(Math.random() * 3)
+      ],
+    };
   }
 
   createProxyAgent(proxyUrl) {
@@ -139,18 +156,9 @@ class NodeGoPinger {
 
   async ping() {
     try {
-      const currentTime = Date.now();
-      if (currentTime - this.lastPingTimestamp < Config.PING_COOLDOWN) {
-        await sleep(
-          Config.PING_COOLDOWN - (currentTime - this.lastPingTimestamp)
-        );
-      }
-
       const response = await this.makeRequest("POST", "/user/nodes/ping", {
         type: "extension",
       });
-      this.lastPingTimestamp = Date.now();
-
       return {
         statusCode: response.data.statusCode,
         message: response.data.message,
@@ -186,10 +194,8 @@ class NodeGoPinger {
         const { ipString } = res.data || {};
         consola.success(`client ip成功 当前IP：${ipString}`);
       }
-      this.pingTotal = 0;
     } catch (e) {
       consola.error(`client ip err ${e}`);
-      this.pingTotal = 0;
     }
   }
 
@@ -270,7 +276,6 @@ class MultiAccountPinger {
   constructor() {
     this.accounts = this.loadAccounts();
     this.isRunning = true;
-    this.pingTotal = 1;
   }
 
   loadAccounts() {
@@ -322,22 +327,19 @@ class MultiAccountPinger {
     }
   }
 
-  async processPing(account, pingTotal) {
+  async processPing(account) {
     const pinger = new NodeGoPinger(account.token, account.proxy);
     try {
       const userInfo = await pinger.getUserInfo();
       consola.info(`正在为账户 Ping: ${userInfo.username}`);
       const pingResponse = await pinger.ping();
       consola.success(`Ping 状态: ${pingResponse.message}`);
-      if (pingTotal == 3) {
-        await pinger.clientIP();
-      }
 
       const updatedUserInfo = await pinger.getUserInfo();
       if (updatedUserInfo.nodes.length > 0) {
         consola.info("节点状态:");
         updatedUserInfo.nodes.forEach((node, index) => {
-          consola.info(`  节点 ${index + 1}: 今日获得 ${node.todayPoint} 点`);
+          consola.info(`节点 ${index + 1}: 今日获得 ${node.todayPoint} 点`);
         });
       }
     } catch (error) {
@@ -346,7 +348,30 @@ class MultiAccountPinger {
       pinger.destroy();
     }
   }
+  async processClient(account) {
+    const pinger = new NodeGoPinger(account.token, account.proxy);
+    try {
+      await pinger.clientIP();
+    } catch (error) {
+      consola.error(`Ping 账户时出错: ${error.message}`);
+    }
+  }
 
+  async runClient() {
+    process.on("SIGINT", () => {
+      consola.warn("正在优雅地关闭...");
+      this.isRunning = false;
+      setTimeout(() => process.exit(0), 1000);
+    });
+    while (this.isRunning) {
+      await Promise.all(
+        this.accounts.map(async (account) => await this.processClient(account))
+      );
+      if (this.isRunning) {
+        await new Promise((resolve) => setTimeout(resolve, Config.CLIENT_IP));
+      }
+    }
+  }
   async runPinger() {
     process.on("SIGINT", () => {
       consola.warn("正在优雅地关闭...");
@@ -354,29 +379,23 @@ class MultiAccountPinger {
       setTimeout(() => process.exit(0), 1000);
     });
 
-    consola.info("🚀 正在执行初始设置和任务...");
-    await Promise.all(
-      this.accounts.map((account) => this.processAccountInitialTasks(account))
-    );
+    // consola.info("🚀 正在执行初始设置和任务...");
+    // await Promise.all(
+    //   this.accounts.map((account) => this.processAccountInitialTasks(account))
+    // );
 
     consola.info("⚡ 开始定期 Ping 循环...");
     while (this.isRunning) {
       consola.info(`⏰ Ping 循环于 ${new Date().toLocaleString()}`);
-
       await Promise.all(
-        this.accounts.map((account) =>
-          this.processPing(account, this.pingTotal)
-        )
+        this.accounts.map((account) => this.processPing(account))
       );
-      if (this.pingTotal === 3) {
-        this.pingTotal = 1;
-      } else this.pingTotal++;
       if (this.isRunning) {
         consola.info(
-          `等待 ${Config.CYCLE_INTERVAL / 1000} 秒后进行下一个循环...`
+          `等待 ${Config.PING_COOLDOWN / 1000} 秒后进行下一个Ping...`
         );
         await new Promise((resolve) =>
-          setTimeout(resolve, Config.CYCLE_INTERVAL)
+          setTimeout(resolve, Config.PING_COOLDOWN)
         );
       }
     }
@@ -385,4 +404,5 @@ class MultiAccountPinger {
 
 // 运行多账户 Pinger
 const multiPinger = new MultiAccountPinger();
+multiPinger.runClient();
 multiPinger.runPinger();
