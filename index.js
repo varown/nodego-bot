@@ -162,7 +162,7 @@ class MultiAccountPinger {
   }
 
   randomDelay() {
-    return Math.floor(Math.random() * 120000) + 240000; // 4-6 分钟延迟
+    return Math.floor(Math.random() * 120000) + 300000; // 5-7 分钟延迟
   }
 
   async runPinger() {
