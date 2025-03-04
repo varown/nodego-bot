@@ -25,18 +25,16 @@ npm install
 ```
 
 ## 配置
-1. 在项目根目录下创建 cookies.json：
+1. 在项目根目录下创建 data.txt：
 - 每行添加一个 NodeGo 令牌
 - 示例：
 ```bash
-[
     'token1',
     'token2',
-    ....
-]   
+    ....  
 ```
 
-2. （可选）在项目根目录下创建 proxies.txt：
+1. （可选）在项目根目录下创建 proxies.txt：
 
 - 每行添加一个代理
 - 支持 HTTP 和 SOCKS 代理
@@ -52,16 +50,6 @@ npm install
 ```bash
 node index.js
 ```
-
-机器人将：
-
-- 从 data.txt 加载所有账户
-- 如果可用，关联 proxies.txt 中的代理
-- 每 10 秒开始定期 ping
-- 显示每个账户的详细状态信息
-
-## 贡献
-欢迎 fork 仓库并提交任何改进的拉取请求。
 
 ## 许可证
 MIT 许可证
